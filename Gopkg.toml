@@ -1,0 +1,12 @@
+
+[[constraint]]
+  name = "github.com/faiface/beep"
+  version = "1.0.2"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+  version = "v1.4.0"
+
+[prune]
+  go-tests = true
+  unused-packages = true
