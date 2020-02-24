@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"os"
 	"regexp"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/faiface/beep"
@@ -18,7 +20,7 @@ import (
 const (
 	// dd.mm.yyyy
 	dateRegExp = `^([0-2][0-9]|(3)[0-1])(\.)(((0)[0-9])|((1)[0-2]))(\.)\d{4}$`
-	urlFormat  = "https://618.by/api/v2/route/schedule?id_route=%d&date=%s"
+	urlFormat  = "https://618.by/api/v2/route/schedule?id_route=%d&date=%s&id_city_from=%d&id_city_to=%d"
 )
 
 type response struct {
@@ -46,12 +48,12 @@ func ValidateDate(date *string) error {
 }
 
 // CheckPlaces sends GET requests to the server and check received JSON
-func CheckPlaces(date string, route uint, interval uint) error {
+func CheckPlaces(date string, route uint, interval uint, cityFrom uint, cityTo uint, timeFrom uint, timeTo uint) error {
 	client := http.Client{
 		Timeout: time.Second * 5,
 	}
 
-	url := fmt.Sprintf(urlFormat, route, date)
+	url := fmt.Sprintf(urlFormat, route, date, cityFrom, cityTo)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -65,6 +67,7 @@ func CheckPlaces(date string, route uint, interval uint) error {
 
 	log.Println("Start check places...")
 	log.Println("URL: ", url)
+	log.Printf("Time: %d - %d", timeFrom, timeTo)
 
 	for {
 		log.Println(time.Now())
@@ -87,7 +90,7 @@ func CheckPlaces(date string, route uint, interval uint) error {
 			continue
 		}
 
-		if err := processResponse(resp, beepBuffer); err != nil {
+		if err := processResponse(resp, timeFrom, timeTo, beepBuffer); err != nil {
 			log.Println(err)
 			continue
 		}
@@ -95,9 +98,19 @@ func CheckPlaces(date string, route uint, interval uint) error {
 	}
 }
 
-func processResponse(resp response, beepBuffer *beep.Buffer) error {
+func processResponse(resp response, timeFrom uint, timeTo uint, beepBuffer *beep.Buffer) error {
 	for _, s := range resp.Schedule {
-		if s.Count != 0 {
+		tokens := strings.Split(s.Time, ":")
+		if len(tokens) == 0 {
+			log.Println("Split: 0 tokens.")
+		}
+		h := tokens[0]
+		hInt, err := strconv.Atoi(h)
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		if hInt >= int(timeFrom) && hInt <= int(timeTo) && s.Count != 0 {
 			log.Printf("Empty place: time: %s, amount: %d.\n", s.Time, s.Count)
 
 			shot := beepBuffer.Streamer(0, beepBuffer.Len())
